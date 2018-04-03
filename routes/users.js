@@ -5,6 +5,7 @@ const User = require('../models/user');
 
 const router = express.Router();
 
+//SIGN UP
 router.post('/users', (req, res, next) => {
 
   const requiredFields = ['username', 'password'];

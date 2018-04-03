@@ -116,6 +116,8 @@ router.put('/notes/:id', (req, res, next) => {
     return next(err);
   }
 
+  const updateItem = { title, content, tags };
+
   if (mongoose.Types.ObjectId.isValid(folderId)) {
     updateItem.folderId = folderId;
   }
@@ -130,8 +132,6 @@ router.put('/notes/:id', (req, res, next) => {
     });
   }
 
-
-  const updateItem = { title, content, tags };
   const options = { new: true };
 
   Note.findByIdAndUpdate(id, updateItem, options)

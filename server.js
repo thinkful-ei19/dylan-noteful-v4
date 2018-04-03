@@ -1,10 +1,12 @@
 'use strict';
 
+require('dotenv').config();
 const express = require('express');
 const morgan = require('morgan');
 const mongoose = require('mongoose');
 const passport = require('passport');
 const localStrategy = require('./passport/local');
+const jwtStrategy = require('./passport/jwt');
 
 const { PORT, MONGODB_URI } = require('./config');
 
@@ -22,20 +24,24 @@ app.use(morgan(process.env.NODE_ENV === 'development' ? 'dev' : 'common', {
   skip: () => process.env.NODE_ENV === 'test'
 }));
 
+passport.use(localStrategy);
+passport.use(jwtStrategy);
+
 // Utilize the Express static webserver, passing in the directory name
 app.use(express.static('public'));
 
 // Utilize the Express `.json()` body parser
 app.use(express.json());
 
-passport.use(localStrategy);
+app.use('/api', usersRouter);
+app.use('/api', authRouter);
+
+app.use(passport.authenticate('jwt', { session: false, failWithError: true }));
 
 // Mount routers
 app.use('/api', notesRouter);
 app.use('/api', foldersRouter);
 app.use('/api', tagsRouter);
-app.use('/api', usersRouter);
-app.use('/api', authRouter);
 
 // Catch-all 404
 app.use(function (req, res, next) {

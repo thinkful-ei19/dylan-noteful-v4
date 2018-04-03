@@ -16,6 +16,7 @@ userSchema.methods.validatePassword = function (password) {
 userSchema.statics.hashPassword = function (password) {
   return bcrypt.hash(password, 10);
 };
+
 userSchema.set('toObject', {
   transform: function (doc, ret) {
     ret.id = ret._id;
