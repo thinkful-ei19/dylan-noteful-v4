@@ -30,7 +30,6 @@ describe('Noteful API - Users', function () {
 
   afterEach(function () {
     return mongoose.connection.db.dropDatabase();
-    // return User.remove({});
   });
 
   after(function () {
