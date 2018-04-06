@@ -31,19 +31,32 @@ describe('Noteful API - Notes', function () {
       .then(() => mongoose.connection.db.dropDatabase());
   });
 
+  // beforeEach(function () {
+  //   return Promise.all([
+  //     User.insertMany(seedUsers),
+  //     User.ensureIndexes(),
+  //     Folder.insertMany(seedFolders),
+  //     Folder.ensureIndexes(),
+  //     Tag.insertMany(seedFolders),
+  //     Tag.ensureIndexes(),
+  //     Note.insertMany(seedNotes)
+  //   ]).then(([users]) => {
+  //     user = users[0];
+  //     token = jwt.sign({ user }, JWT_SECRET, { subject: user.username });
+  //   });
+  // });
+
   beforeEach(function () {
-    return Promise.all([
-      User.insertMany(seedUsers),
-      User.ensureIndexes(),
-      Folder.insertMany(seedFolders),
-      Folder.ensureIndexes(),
-      Tag.insertMany(seedFolders),
-      Tag.ensureIndexes(),
-      Note.insertMany(seedNotes)
-    ]).then(([users]) => {
-      user = users[0];
-      token = jwt.sign({ user }, JWT_SECRET, { subject: user.username });
-    });
+    return User.insertMany(seedUsers)
+      .then(results => {
+        user = results[0];
+        token = jwt.sign({ user }, JWT_SECRET, { subject: user.username });
+        const noteInsertPromise = Note.insertMany(seedNotes);
+        const folderInsertPromise = Folder.insertMany(seedFolders);
+        return Promise.all([noteInsertPromise, folderInsertPromise])
+          .then(() => Note.ensureIndexes());
+      });
+
   });
 
   afterEach(function () {
