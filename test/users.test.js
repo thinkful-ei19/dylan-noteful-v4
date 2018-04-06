@@ -30,6 +30,7 @@ describe('Noteful API - Users', function () {
 
   afterEach(function () {
     return mongoose.connection.db.dropDatabase();
+
   });
 
   after(function () {
@@ -79,6 +80,9 @@ describe('Noteful API - Users', function () {
           });
       });
 
+      /**
+       * COMPLETE ALL THE FOLLOWING TESTS
+       */
       it('Should reject users with missing password', function () {
         const testUser = { username, fullname };
         return chai.request(app).post('/api/users').send(testUser)
