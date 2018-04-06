@@ -1,308 +1,352 @@
-// 'use strict';
-// const app = require('../server');
-// const chai = require('chai');
-// const chaiHttp = require('chai-http');
-// const mongoose = require('mongoose');
+'use strict';
+const app = require('../server');
+const chai = require('chai');
+const chaiHttp = require('chai-http');
+const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
 
-// const { TEST_MONGODB_URI } = require('../config');
+const { TEST_MONGODB_URI } = require('../config');
+const { JWT_SECRET } = require('../config');
 
-// const Note = require('../models/note');
-// const Folder = require('../models/folder');
-// const seedNotes = require('../db/seed/notes');
-// const seedFolders = require('../db/seed/folders');
+const Note = require('../models/note');
+const Folder = require('../models/folder');
+const Tag = require('../models/tag');
+const User = require('../models/user');
+const seedNotes = require('../db/seed/notes');
+const seedFolders = require('../db/seed/folders');
+const seedTags = require('../db/seed/tags');
+const seedUsers = require('../db/seed/users');
 
-// const expect = chai.expect;
+const expect = chai.expect;
 
-// chai.use(chaiHttp);
+chai.use(chaiHttp);
 
-// describe('Noteful API - Notes', function () {
-//   before(function () {
-//     return mongoose.connect(TEST_MONGODB_URI)
-//       .then(() => mongoose.connection.db.dropDatabase());
-//   });
+describe('Noteful API - Notes', function () {
 
-//   beforeEach(function () {
-//     const noteInsertPromise = Note.insertMany(seedNotes);
-//     const folderInsertPromise = Folder.insertMany(seedFolders);
-//     return Promise.all([noteInsertPromise, folderInsertPromise])
-//       .then(() => Note.ensureIndexes());
-//   });
+  let token;
+  let user;
 
-//   afterEach(function () {
-//     return mongoose.connection.db.dropDatabase();
-//   });
+  before(function () {
+    return mongoose.connect(TEST_MONGODB_URI)
+      .then(() => mongoose.connection.db.dropDatabase());
+  });
 
-//   after(function () {
-//     return mongoose.disconnect();
-//   });
+  beforeEach(function () {
+    return Promise.all([
+      User.insertMany(seedUsers),
+      User.ensureIndexes(),
+      Folder.insertMany(seedFolders),
+      Folder.ensureIndexes(),
+      Tag.insertMany(seedFolders),
+      Tag.ensureIndexes(),
+      Note.insertMany(seedNotes)
+    ]).then(([users]) => {
+      user = users[0];
+      token = jwt.sign({ user }, JWT_SECRET, { subject: user.username });
+    });
+  });
 
-//   describe('GET /api/notes', function () {
+  afterEach(function () {
+    return mongoose.connection.db.dropDatabase();
+  });
 
-//     it('should return the correct number of Notes', function () {
-//       const dbPromise = Note.find();
-//       const apiPromise = chai.request(app).get('/api/notes');
+  after(function () {
+    return mongoose.disconnect();
+  });
 
-//       return Promise.all([dbPromise, apiPromise])
-//         .then(([data, res]) => {
-//           expect(res).to.have.status(200);
-//           expect(res).to.be.json;
-//           expect(res.body).to.be.a('array');
-//           expect(res.body).to.have.length(data.length);
-//         });
-//     });
+  describe('GET /api/notes', function () {
 
-//     it('should return a list with the correct right fields', function () {
-//       const dbPromise = Note.find();
-//       const apiPromise = chai.request(app).get('/api/notes');
+    it('should return the correct number of Notes', function () {
+      const dbPromise = Note.find({ userId: user.id });
+      const apiPromise = chai.request(app)
+        .get('/api/notes')
+        .set('Authorization', `Bearer ${token}`);
 
-//       return Promise.all([dbPromise, apiPromise])
-//         .then(([data, res]) => {
-//           expect(res).to.have.status(200);
-//           expect(res).to.be.json;
-//           expect(res.body).to.be.a('array');
-//           expect(res.body).to.have.length(data.length);
-//           res.body.forEach(function (item) {
-//             expect(item).to.be.a('object');
-//             expect(item).to.have.keys('id', 'title', 'content', 'created', 'folderId', 'tags');
-//           });
-//         });
-//     });
+      return Promise.all([dbPromise, apiPromise])
+        .then(([data, res]) => {
+          expect(res).to.have.status(200);
+          expect(res).to.be.json;
+          expect(res.body).to.be.a('array');
+          expect(res.body).to.have.length(data.length);
+        });
+    });
 
-//     it('should return correct search results for a searchTerm query', function () {
-//       const searchTerm = 'gaga';
-//       const re = new RegExp(searchTerm, 'i');
-//       const dbPromise = Note.find({ title: { $regex: re } });
-//       const apiPromise = chai.request(app).get(`/api/notes?searchTerm=${searchTerm}`);
+    it('should return a list with the correct right fields', function () {
+      const dbPromise = Note.find({ userId: user.id });
+      const apiPromise = chai.request(app)
+        .get('/api/notes')
+        .set('Authorization', `Bearer ${token}`);
 
-//       return Promise.all([dbPromise, apiPromise])
-//         .then(([data, res]) => {
-//           expect(res).to.have.status(200);
-//           expect(res).to.be.json;
-//           expect(res.body).to.be.a('array');
-//           expect(res.body).to.have.length(1);
-//           expect(res.body[0]).to.be.an('object');
-//           expect(res.body[0].id).to.equal(data[0].id);
-//         });
-//     });
+      return Promise.all([dbPromise, apiPromise])
+        .then(([data, res]) => {
+          expect(res).to.have.status(200);
+          expect(res).to.be.json;
+          expect(res.body).to.be.a('array');
+          expect(res.body).to.have.length(data.length);
+          res.body.forEach(function (item) {
+            expect(item).to.be.a('object');
+            expect(item).to.have.keys('id', 'title', 'content', 'created', 'folderId', 'tags', 'userId');
+          });
+        });
+    });
 
-//     it('should return correct search results for a folderId query', function () {
-//       let data;
-//       return Folder.findOne()
-//         .then((_data) => {
-//           data = _data;
-//           const dbPromise = Note.find({ folderId: data.id });
-//           const apiPromise = chai.request(app).get(`/api/notes?folderId=${data.id}`);
-//           return Promise.all([dbPromise, apiPromise]);
-//         })
-//         .then(([data, res]) => {
-//           expect(res).to.have.status(200);
-//           expect(res).to.be.json;
-//           expect(res.body).to.be.a('array');
-//           expect(res.body).to.have.length(data.length);
-//         });
-//     });
+    it('should return correct search results for a searchTerm query', function () {
+      const searchTerm = 'gaga';
+      const re = new RegExp(searchTerm, 'i');
+      const dbPromise = Note.find({ title: { $regex: re }, userId: user.id });
+      const apiPromise = chai.request(app)
+        .get(`/api/notes?searchTerm=${searchTerm}`)
+        .set('Authorization', `Bearer ${token}`);
 
-//     it('should return an empty array for an incorrect query', function () {
-//       const searchTerm = 'NotValid';
-//       const re = new RegExp(searchTerm, 'i');
-//       const dbPromise = Note.find({ title: { $regex: re } });
-//       const apiPromise = chai.request(app).get(`/api/notes?searchTerm=${searchTerm}`);
+      return Promise.all([dbPromise, apiPromise])
+        .then(([data, res]) => {
+          expect(res).to.have.status(200);
+          expect(res).to.be.json;
+          expect(res.body).to.be.a('array');
+          expect(res.body).to.have.length(1);
+          expect(res.body[0]).to.be.an('object');
+          expect(res.body[0].id).to.equal(data[0].id);
+          expect(res.body[0].userId).to.equal((data[0].userId).toString());
+        });
+    });
 
-//       return Promise.all([dbPromise, apiPromise])
-//         .then(([data, res]) => {
-//           expect(res).to.have.status(200);
-//           expect(res).to.be.json;
-//           expect(res.body).to.be.a('array');
-//           expect(res.body).to.have.length(data.length);
-//         });
-//     });
+    it('should return correct search results for a folderId query', function () {
+      let data;
+      return Folder.findOne()
+        .then((_data) => {
+          data = _data;
+          const dbPromise = Note.find({ folderId: data.id });
+          const apiPromise = chai.request(app)
+            .get(`/api/notes?folderId=${data.id}`)
+            .set('Authorization', `Bearer ${token}`);
+          return Promise.all([dbPromise, apiPromise]);
+        })
+        .then(([data, res]) => {
+          expect(res).to.have.status(200);
+          expect(res).to.be.json;
+          expect(res.body).to.be.a('array');
+          expect(res.body).to.have.length(data.length);
+        });
+    });
 
-//   });
+    it('should return an empty array for an incorrect query', function () {
+      const searchTerm = 'NotValid';
+      const re = new RegExp(searchTerm, 'i');
+      const dbPromise = Note.find({ title: { $regex: re }, userId: user.id });
+      const apiPromise = chai.request(app)
+        .get(`/api/notes?searchTerm=${searchTerm}`)
+        .set('Authorization', `Bearer ${token}`);
 
-//   describe('GET /api/notes/:id', function () {
+      return Promise.all([dbPromise, apiPromise])
+        .then(([data, res]) => {
+          expect(res).to.have.status(200);
+          expect(res).to.be.json;
+          expect(res.body).to.be.a('array');
+          expect(res.body).to.have.length(data.length);
+        });
+    });
 
-//     it('should return correct notes', function () {
-//       let data;
-//       return Note.findOne()
-//         .then(_data => {
-//           data = _data;
-//           return chai.request(app).get(`/api/notes/${data.id}`);
-//         })
-//         .then((res) => {
-//           expect(res).to.have.status(200);
-//           expect(res).to.be.json;
+  });
 
-//           expect(res.body).to.be.an('object');
-//           expect(res.body).to.have.keys('id', 'title', 'content', 'created', 'folderId', 'tags');
+  describe('GET /api/notes/:id', function () {
 
-//           expect(res.body.id).to.equal(data.id);
-//           expect(res.body.title).to.equal(data.title);
-//           expect(res.body.content).to.equal(data.content);
-//         });
-//     });
+    it('should return correct notes', function () {
+      let data;
+      return Note.findOne()
+        .then(_data => {
+          data = _data;
+          return chai.request(app)
+            .get(`/api/notes/${data.id}`)
+            .set('Authorization', `Bearer ${token}`);
+        })
+        .then((res) => {
+          expect(res).to.have.status(200);
+          expect(res).to.be.json;
 
-//     it('should respond with a 400 for improperly formatted id', function () {
-//       const badId = '99-99-99';
+          expect(res.body).to.be.an('object');
+          expect(res.body).to.have.keys('id', 'title', 'content', 'created', 'folderId', 'tags', 'userId');
 
-//       return chai.request(app)
-//         .get(`/api/notes/${badId}`)
-//         .catch(err => err.response)
-//         .then(res => {
-//           expect(res).to.have.status(400);
-//           expect(res.body.message).to.eq('The `id` is not valid');
-//         });
-//     });
+          expect(res.body.id).to.equal(data.id);
+          expect(res.body.title).to.equal(data.title);
+          expect(res.body.content).to.equal(data.content);
+          expect(res.body.userId).to.equal((data.userId).toString());
+        });
+    });
 
-//     it('should respond with a 404 for an invalid id', function () {
+    it('should respond with a 400 for improperly formatted id', function () {
+      const badId = '99-99-99';
 
-//       return chai.request(app)
-//         .get('/api/notes/AAAAAAAAAAAAAAAAAAAAAAAA')
-//         .catch(err => err.response)
-//         .then(res => {
-//           expect(res).to.have.status(404);
-//         });
-//     });
+      return chai.request(app)
+        .get(`/api/notes/${badId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .catch(err => err.response)
+        .then(res => {
+          expect(res).to.have.status(400);
+          expect(res.body.message).to.eq('The `id` is not valid');
+        });
+    });
 
-//   });
+    it('should respond with a 404 for an invalid id', function () {
 
-//   describe('POST /api/notes', function () {
+      return chai.request(app)
+        .get('/api/notes/AAAAAAAAAAAAAAAAAAAAAAAA')
+        .set('Authorization', `Bearer ${token}`)
+        .catch(err => err.response)
+        .then(res => {
+          expect(res).to.have.status(404);
+        });
+    });
 
-//     it('should create and return a new item when provided valid data', function () {
-//       const newItem = {
-//         'title': 'The best article about cats ever!',
-//         'content': 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor...'
-//       };
-//       let res;
-//       return chai.request(app)
-//         .post('/api/notes')
-//         .send(newItem)
-//         .then(function (_res) {
-//           res = _res;
-//           expect(res).to.have.status(201);
-//           expect(res).to.have.header('location');
-//           expect(res).to.be.json;
-//           expect(res.body).to.be.a('object');
-//           expect(res.body).to.have.keys('id', 'title', 'content', 'created', 'tags');
-//           return Note.findById(res.body.id);
-//         })
-//         .then(data => {
-//           expect(res.body.title).to.equal(data.title);
-//           expect(res.body.content).to.equal(data.content);
-//         });
-//     });
+  });
 
-//     it('should return an error when missing "title" field', function () {
-//       const newItem = {
-//         'foo': 'bar'
-//       };
+  describe('POST /api/notes', function () {
 
-//       return chai.request(app)
-//         .post('/api/notes')
-//         .send(newItem)
-//         .catch(err => err.response)
-//         .then(res => {
-//           expect(res).to.have.status(400);
-//           expect(res).to.be.json;
-//           expect(res.body).to.be.a('object');
-//           expect(res.body.message).to.equal('Missing `title` in request body');
-//         });
-//     });
+    it('should create and return a new item when provided valid data', function () {
+      const newItem = {
+        'title': 'The best article about cats ever!',
+        'content': 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor...'
+      };
+      let res;
+      return chai.request(app)
+        .post('/api/notes')
+        .set('Authorization', `Bearer ${token}`)
+        .send(newItem)
+        .then(function (_res) {
+          res = _res;
+          expect(res).to.have.status(201);
+          expect(res).to.have.header('location');
+          expect(res).to.be.json;
+          expect(res.body).to.be.a('object');
+          expect(res.body).to.have.keys('id', 'title', 'content', 'created', 'tags', 'userId');
+          return Note.findById(res.body.id);
+        })
+        .then(data => {
+          expect(res.body.title).to.equal(data.title);
+          expect(res.body.content).to.equal(data.content);
+          expect(res.body.userId).to.equal((data.userId).toString());
+        });
+    });
 
-//   });
+    it('should return an error when missing "title" field', function () {
+      const newItem = {
+        'foo': 'bar'
+      };
 
-//   describe('PUT /api/notes/:id', function () {
+      return chai.request(app)
+        .post('/api/notes')
+        .set('Authorization', `Bearer ${token}`)
+        .send(newItem)
+        .catch(err => err.response)
+        .then(res => {
+          expect(res).to.have.status(400);
+          expect(res).to.be.json;
+          expect(res.body).to.be.a('object');
+          expect(res.body.message).to.equal('Missing `title` in request body');
+        });
+    });
 
-//     it('should update the note', function () {
-//       const updateItem = {
-//         'title': 'What about dogs?!',
-//         'content': 'woof woof'
-//       };
-//       let data;
-//       return Note.findOne()
-//         .then(_data => {
-//           data = _data;
-//           return chai.request(app)
-//             .put(`/api/notes/${data.id}`)
-//             .send(updateItem);
-//         })
-//         .then(function (res) {
-//           expect(res).to.have.status(200);
-//           expect(res).to.be.json;
-//           expect(res.body).to.be.a('object');
-//           expect(res.body).to.have.keys('id', 'title', 'content', 'created', 'folderId', 'tags');
+  });
 
-//           expect(res.body.id).to.equal(data.id);
-//           expect(res.body.title).to.equal(updateItem.title);
-//           expect(res.body.content).to.equal(updateItem.content);
-//         });
-//     });
+  describe('PUT /api/notes/:id', function () {
+
+    it('should update the note', function () {
+      const updateItem = {
+        'title': 'What about dogs?!',
+        'content': 'woof woof'
+      };
+      let data;
+      return Note.findOne()
+        .then(_data => {
+          data = _data;
+          return chai.request(app)
+            .put(`/api/notes/${data.id}`)
+            .set('Authorization', `Bearer ${token}`)
+            .send(updateItem);
+        })
+        .then(function (res) {
+          expect(res).to.have.status(200);
+          expect(res).to.be.json;
+          expect(res.body).to.be.a('object');
+          expect(res.body).to.have.keys('id', 'title', 'content', 'created', 'folderId', 'tags', 'userId');
+
+          expect(res.body.id).to.equal(data.id);
+          expect(res.body.title).to.equal(updateItem.title);
+          expect(res.body.content).to.equal(updateItem.content);
+          expect(res.body.userId).to.equal((data.userId).toString());
+        });
+    });
 
 
-//     it('should respond with a 400 for improperly formatted id', function () {
-//       const updateItem = {
-//         'title': 'What about dogs?!',
-//         'content': 'woof woof'
-//       };
-//       const badId = '99-99-99';
+    it('should respond with a 400 for improperly formatted id', function () {
+      const updateItem = {
+        'title': 'What about dogs?!',
+        'content': 'woof woof'
+      };
+      const badId = '99-99-99';
 
-//       return chai.request(app)
-//         .put(`/api/notes/${badId}`)
-//         .send(updateItem)
-//         .catch(err => err.response)
-//         .then(res => {
-//           expect(res).to.have.status(400);
-//           expect(res.body.message).to.eq('The `id` is not valid');
-//         });
-//     });
+      return chai.request(app)
+        .put(`/api/notes/${badId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send(updateItem)
+        .catch(err => err.response)
+        .then(res => {
+          expect(res).to.have.status(400);
+          expect(res.body.message).to.eq('The `id` is not valid');
+        });
+    });
 
-//     it('should respond with a 404 for an invalid id', function () {
-//       const updateItem = {
-//         'title': 'What about dogs?!',
-//         'content': 'woof woof'
-//       };
+    it('should respond with a 404 for an invalid id', function () {
+      const updateItem = {
+        'title': 'What about dogs?!',
+        'content': 'woof woof'
+      };
 
-//       return chai.request(app)
-//         .put('/api/notes/AAAAAAAAAAAAAAAAAAAAAAAA')
-//         .send(updateItem)
-//         .catch(err => err.response)
-//         .then(res => {
-//           expect(res).to.have.status(404);
-//         });
-//     });
+      return chai.request(app)
+        .put('/api/notes/AAAAAAAAAAAAAAAAAAAAAAAA')
+        .set('Authorization', `Bearer ${token}`)
+        .send(updateItem)
+        .catch(err => err.response)
+        .then(res => {
+          expect(res).to.have.status(404);
+        });
+    });
 
-//     it('should return an error when missing "title" field', function () {
-//       const updateItem = {
-//         'foo': 'bar'
-//       };
+    it('should return an error when missing "title" field', function () {
+      const updateItem = {
+        'foo': 'bar'
+      };
 
-//       return chai.request(app)
-//         .put('/api/notes/9999')
-//         .send(updateItem)
-//         .catch(err => err.response)
-//         .then(res => {
-//           expect(res).to.have.status(400);
-//           expect(res).to.be.json;
-//           expect(res.body).to.be.a('object');
-//           expect(res.body.message).to.equal('Missing `title` in request body');
-//         });
-//     });
+      return chai.request(app)
+        .put('/api/notes/9999')
+        .set('Authorization', `Bearer ${token}`)
+        .send(updateItem)
+        .catch(err => err.response)
+        .then(res => {
+          expect(res).to.have.status(400);
+          expect(res).to.be.json;
+          expect(res.body).to.be.a('object');
+          expect(res.body.message).to.equal('Missing `title` in request body');
+        });
+    });
 
-//   });
+  });
 
-//   describe('DELETE  /api/notes/:id', function () {
+  describe('DELETE  /api/notes/:id', function () {
 
-//     it('should delete an item by id', function () {
-//       let data;
-//       return Note.findOne()
-//         .then(_data => {
-//           data = _data;
-//           return chai.request(app).delete(`/api/notes/${data.id}`);
-//         })
-//         .then(function (res) {
-//           expect(res).to.have.status(204);
-//         });
-//     });
+    it('should delete an item by id', function () {
+      let data;
+      return Note.findOne()
+        .then(_data => {
+          data = _data;
+          return chai.request(app)
+            .delete(`/api/notes/${data.id}`)
+            .set('Authorization', `Bearer ${token}`);
+        })
+        .then(function (res) {
+          expect(res).to.have.status(204);
+        });
+    });
 
-//   });
+  });
 
-// });
+});

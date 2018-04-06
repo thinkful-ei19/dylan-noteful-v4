@@ -77,7 +77,7 @@ router.get('/notes/:id', (req, res, next) => {
   }
 
   Note.findById({ _id: id, userId })
-    .select('title content created folderId tags')
+    .select('title content created folderId tags userId')
     .populate('tags')
     .then(result => {
       if (result) {
