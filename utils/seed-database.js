@@ -6,9 +6,11 @@ const { MONGODB_URI } = require('../config');
 const Note = require('../models/note');
 const Folder = require('../models/folder');
 const Tag = require('../models/tag');
+const User = require('../models/user');
 
 const seedNotes = require('../db/seed/notes');
 const seedFolders = require('../db/seed/folders');
+const seedUsers = require('../db/seed/users');
 
 mongoose.connect(MONGODB_URI)
   .then(() => mongoose.connection.db.dropDatabase())
@@ -19,6 +21,8 @@ mongoose.connect(MONGODB_URI)
       Folder.createIndexes(),
       Tag.insertMany(),
       Tag.createIndexes(),
+      User.insertMany(seedUsers),
+      User.createIndexes()
     ]);
   })
   .then(() => mongoose.disconnect())
